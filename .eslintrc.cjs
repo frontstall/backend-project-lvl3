@@ -14,5 +14,6 @@ module.exports = {
   },
   plugins: ['jest'],
   rules: {
+    'import/extensions': 0,
   },
 };
