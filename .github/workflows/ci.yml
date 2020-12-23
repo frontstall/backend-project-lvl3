@@ -18,7 +18,7 @@ jobs:
     steps:
       - uses: actions/checkout@master
       - uses: actions/setup-node@master
-      - run: make installl-deps
+      - run: make install-deps
       - uses: paambaati/codeclimate-action@v2.7.5
         env:
           CC_TEST_REPORTER_ID: ${{secrets.CC_COVERAGE_REPORT_TOKEN}}
