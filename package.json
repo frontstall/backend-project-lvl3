@@ -43,6 +43,9 @@
     "clearMocks": true,
     "coverageDirectory": "coverage",
     "coverageProvider": "v8",
-    "transform": {}
+    "transform": {},
+    "collectCoverageFrom": [
+      "src/**.js"
+    ]
   }
 }
