@@ -10,6 +10,8 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-node@v1
       - run: make install-deps
+      - run: make lint
+      - run: make test
   coverage:
     needs: [test]
     runs-on: ubuntu-latest
@@ -17,7 +19,7 @@ jobs:
       - uses: actions/checkout@master
       - uses: actions/setup-node@master
       - run: make installl-deps
-      - uses: paambaati/codeclimate-action@v2.2.4
+      - uses: paambaati/codeclimate-action@v2.7.5
         env:
           CC_TEST_REPORTER_ID: 3e103a2e5cd3070d5cd457e67f53774b043beb6281ad544dfabda669c26e1e22
         with:
