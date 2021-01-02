@@ -7,8 +7,10 @@ const urlToFilename = (string) => {
   const extension = '.html';
   const url = new URL(string);
   const urlWithoutProtocol = `${url.hostname}${url.pathname}`;
-  const filename = urlWithoutProtocol.replace(/[^A-z]/g, placeholder);
-  return `${filename}${extension}`;
+  const filename = urlWithoutProtocol
+    .replace(/[^A-z]/g, placeholder)
+    .concat(extension);
+  return filename;
 };
 
 const load = (url, outputDirPath) => {
