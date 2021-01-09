@@ -60,8 +60,8 @@ const load = (url, outputDirPath) => {
           ext,
         });
 
-        const { href } = new URL(el.attribs.src, url);
-
+        const { origin, pathname } = new URL(url);
+        const { href } = new URL(path.join(pathname, el.attribs.src), origin);
         imagesData.push({
           href,
           filename: path.format({ name: imgFilename, ext }),
@@ -71,7 +71,7 @@ const load = (url, outputDirPath) => {
 
       const html = $.html();
 
-      return Promise.all([imagesData, fs.writeFile(pathToFile, html, 'utf-8'), fs.mkdir(pathToResources), fs.writeFile('/home/roman/projects/backend-project-lvl3/__fixtures__/smartrw-github-io-nerds.html', html)]);
+      return Promise.all([imagesData, fs.writeFile(pathToFile, html, 'utf-8'), fs.mkdir(pathToResources)]);
     })
     .then(([imagesData]) => {
       const promises = imagesData.map(({ href, filename }) => {

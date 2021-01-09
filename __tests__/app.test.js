@@ -1,11 +1,10 @@
 // @ts-check
 import os from 'os';
 import path from 'path';
-import { promises as fs } from 'fs';
+import { promises as fs, createReadStream } from 'fs';
 import nock from 'nock';
 import axios from 'axios';
 import adapter from 'axios/lib/adapters/http';
-import _ from 'lodash';
 
 import load from '../src';
 
@@ -30,24 +29,37 @@ beforeEach(async () => {
 });
 
 test('application', async () => {
-  const expectedFilename = 'smartrw-github-io-nerds.html';
-  const expectedAssetsDirectoryName = 'smartrw-github-io-nerds_files';
-  const expectedPathToAssetsDirectory = path.resolve(pathToTempDir, expectedAssetsDirectoryName);
-  const index = await fs.readFile(getPathToFixture('index.html'), 'utf-8');
-  const expected = await fs.readFile(getPathToFixture(expectedFilename), 'utf-8');
+  const expectedFileName = 'smartrw-github-io-nerds.html';
+  const assetsDirectoryName = 'smartrw-github-io-nerds_files';
+  const fixture = await fs.readFile(getPathToFixture('index.html'), 'utf-8');
+  const expectedFileContent = await fs.readFile(getPathToFixture(expectedFileName), 'utf-8');
   nock(hostname)
     .get(pathname)
-    .reply(200, index);
+    .reply(200, fixture);
+
+  [
+    'logo-1.png',
+    'logo-2.png',
+    'logo-3.png',
+    'logo-4.png',
+    'nerds-illustration.png',
+  ].forEach((imgName) => {
+    const src = path.join(pathname, 'img', imgName);
+
+    nock(hostname)
+      .get(src)
+      .reply(200, () => {
+        const pathToImg = getPathToFixture(path.join('assets', imgName));
+        return createReadStream(pathToImg);
+      });
+  });
 
   const pathToLoadedFile = await load(href, pathToTempDir);
-  expect(await fs.readFile(pathToLoadedFile, 'utf-8')).toBe(expected);
+  expect(pathToLoadedFile).toBe(path.resolve(pathToTempDir, expectedFileName));
+  expect(await fs.readFile(pathToLoadedFile, 'utf-8')).toBe(expectedFileContent);
 
-  expect(pathToLoadedFile).toBe(path.resolve(pathToTempDir, expectedFilename));
-
-  const { path: pathToAssetsDirectory } = await fs.opendir(expectedPathToAssetsDirectory);
-  expect(pathToAssetsDirectory).toBe(expectedPathToAssetsDirectory);
-
+  const pathToAssetsDirectory = path.resolve(pathToTempDir, assetsDirectoryName);
   const assetsFilenames = await fs.readdir(pathToAssetsDirectory);
-  const expectedAssetsFilenames = await fs.readdir(expectedPathToAssetsDirectory);
-  expect(_.difference(assetsFilenames, expectedAssetsFilenames)).toEqual([]);
+  const expectedAssetsFilenames = await fs.readdir(getPathToFixture(assetsDirectoryName));
+  expect(assetsFilenames.sort()).toEqual(expectedAssetsFilenames.sort());
 });
