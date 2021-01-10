@@ -46,6 +46,10 @@ const assetsConfig = {
     type: 'text',
     dir: 'js',
   },
+  'nerds-logo.svg': {
+    type: 'text',
+    dir: 'img',
+  },
 };
 
 const getHandler = (assetType, pathToAsset) => {

@@ -5,16 +5,33 @@ import { promises as fs, createWriteStream } from 'fs';
 import path from 'path';
 import cheerio from 'cheerio';
 
-const imgExtensions = ['.png', '.jpg', '.jpeg'];
+const binaryFilesExtensions = ['.png', '.jpg', '.jpeg'];
+const tagsToAttrs = {
+  img: 'src',
+  link: 'href',
+  script: 'src',
+};
+
+const isLocalLink = (link, origin) => {
+  const url = new URL(link, origin);
+  return url.origin === origin;
+};
+
+const parseLinkFromNode = (el) => {
+  const attrName = tagsToAttrs[el.tagName];
+  const link = el.attribs[attrName];
+
+  return link;
+};
 
 const stringify = (string, placeholder = '-') => string.replace(/[^A-Za-z0-9]/g, placeholder);
 
 const stringifyUrl = (string) => {
-  const url = new URL(string);
-  return stringify(`${url.hostname}${url.pathname}`);
+  const { hostname, pathname } = new URL(string);
+  return stringify(`${hostname}${pathname}`);
 };
 
-const downloadImage = (url, pathToSave) => new Promise((resolve, reject) => {
+const downloadBinaryFile = (url, pathToSave) => new Promise((resolve, reject) => {
   let stream;
   axios
     .get(url, { responseType: 'stream' })
@@ -30,54 +47,66 @@ const downloadImage = (url, pathToSave) => new Promise((resolve, reject) => {
     });
 });
 
+const downloadTextFile = (url, pathToSave) => axios.get(url)
+  .then(({ data }) => fs.writeFile(pathToSave, data, 'utf-8'));
+
+const downloadFile = (url, pathToSave) => {
+  const { ext } = path.parse(url);
+  const isBinary = binaryFilesExtensions.includes(ext);
+  const download = isBinary ? downloadBinaryFile : downloadTextFile;
+  return download(url, pathToSave);
+};
+
 const load = (url, outputDirPath) => {
-  const fileName = stringifyUrl(url);
+  const { origin, pathname } = new URL(url);
+  const prefix = stringifyUrl(url);
   const pathToFile = path.format({
     dir: outputDirPath,
-    name: fileName,
+    name: prefix,
     ext: '.html',
   });
-  const dirname = fileName.concat('_files');
+  const dirname = prefix.concat('_files');
   const pathToResources = path.join(outputDirPath, dirname);
   return axios.get(url)
     .then((response) => {
       const { data } = response;
       const $ = cheerio.load(data);
-      const imgs = $('img').filter((_i, el) => {
-        const { ext } = path.parse(el.attribs.src);
+      const assets = $('img,link,script');
 
-        return imgExtensions.includes(ext);
+      const localAssets = assets.toArray().filter((el) => {
+        const link = parseLinkFromNode(el);
+        return isLocalLink(link, origin);
       });
 
-      const imagesData = [];
-      imgs.each((_i, el) => {
-        const { dir, name, ext } = path.parse(el.attribs.src);
-        const pathToImage = path.format({ dir, name });
-        const imgFilename = [stringifyUrl(url), stringify(pathToImage)].join('-');
-        const newSrc = path.format({
+      const pathsToLocalAssets = localAssets.map((el) => parseLinkFromNode(el));
+
+      localAssets.forEach((el) => {
+        const attrName = tagsToAttrs[el.tagName];
+        const { dir, name, ext } = path.parse(el.attribs[attrName]);
+        const assetPath = path.format({ dir, name });
+        const assetName = `${prefix}-${stringify(assetPath)}`;
+        const newAttrValue = path.format({
           dir: dirname,
-          name: imgFilename,
+          name: assetName,
           ext,
         });
-
-        const { origin, pathname } = new URL(url);
-        const { href } = new URL(path.join(pathname, el.attribs.src), origin);
-        imagesData.push({
-          href,
-          filename: path.format({ name: imgFilename, ext }),
-        });
-        el.attribs.src = newSrc;
+        // eslint-disable-next-line no-param-reassign
+        el.attribs[attrName] = newAttrValue;
       });
 
       const html = $.html();
 
-      return Promise.all([imagesData, fs.writeFile(pathToFile, html, 'utf-8'), fs.mkdir(pathToResources)]);
+      return Promise.all([pathsToLocalAssets, fs.writeFile(pathToFile, html, 'utf-8'), fs.mkdir(pathToResources)]);
     })
-    .then(([imagesData]) => {
-      const promises = imagesData.map(({ href, filename }) => {
-        const pathToImg = path.join(pathToResources, filename);
-        return downloadImage(href, pathToImg);
-      });
+    .then(([paths]) => {
+      const promises = paths
+        .map((p) => {
+          const { dir, name, ext } = path.parse(p);
+          const assetName = `${stringifyUrl(origin)}${stringify(dir)}-${stringify(name)}`;
+          const assetPath = path.format({ dir: pathToResources, name: assetName, ext });
+          const assetUrl = new URL(path.join(pathname, p), origin);
+          return downloadFile(assetUrl.href, assetPath);
+        });
       return Promise.allSettled(promises);
     })
     .then(() => pathToFile)
